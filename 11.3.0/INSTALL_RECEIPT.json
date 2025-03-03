@@ -1,0 +1,187 @@
+{
+  "homebrew_version": "4.4.22-69-g9a3451e",
+  "used_options": [
+
+  ],
+  "unused_options": [
+
+  ],
+  "built_as_bottle": true,
+  "poured_from_bottle": true,
+  "loaded_from_api": true,
+  "installed_as_dependency": false,
+  "installed_on_request": true,
+  "changed_files": [
+    "libexec/bin/ansible",
+    "libexec/bin/ansible-community",
+    "libexec/bin/ansible-config",
+    "libexec/bin/ansible-console",
+    "libexec/bin/ansible-doc",
+    "libexec/bin/ansible-galaxy",
+    "libexec/bin/ansible-inventory",
+    "libexec/bin/ansible-playbook",
+    "libexec/bin/ansible-pull",
+    "libexec/bin/ansible-test",
+    "libexec/bin/ansible-vault",
+    "libexec/bin/convert-json",
+    "libexec/bin/futurize",
+    "libexec/bin/jp.py",
+    "libexec/bin/jsondiff",
+    "libexec/bin/jsonpatch",
+    "libexec/bin/jsonpointer",
+    "libexec/bin/netaddr",
+    "libexec/bin/normalizer",
+    "libexec/bin/openstack-inventory",
+    "libexec/bin/oslo-config-generator",
+    "libexec/bin/oslo-config-validator",
+    "libexec/bin/pasteurize",
+    "libexec/bin/pbr",
+    "libexec/bin/pyrsa-decrypt",
+    "libexec/bin/pyrsa-encrypt",
+    "libexec/bin/pyrsa-keygen",
+    "libexec/bin/pyrsa-priv2pub",
+    "libexec/bin/pyrsa-sign",
+    "libexec/bin/pyrsa-verify",
+    "libexec/bin/pyserial-miniterm",
+    "libexec/bin/pyserial-ports",
+    "libexec/bin/pyspnego-parse",
+    "libexec/bin/shade-inventory",
+    "libexec/bin/textfsm",
+    "libexec/bin/wsdump",
+    "libexec/lib/python3.13/site-packages/ansible_collections/community/general/plugins/modules/homebrew.py",
+    "libexec/lib/python3.13/site-packages/ansible_collections/community/general/plugins/modules/homebrew_cask.py",
+    "libexec/lib/python3.13/site-packages/ansible_collections/community/general/plugins/modules/homebrew_services.py",
+    "libexec/lib/python3.13/site-packages/ansible_collections/community/general/plugins/modules/homebrew_tap.py",
+    "libexec/lib/python3.13/site-packages/ansible/module_utils/facts/system/pkg_mgr.py",
+    "libexec/lib/python3.13/site-packages/homebrew_deps.pth",
+    "libexec/lib/python3.13/site-packages/platformdirs/macos.py",
+    "libexec/lib/python3.13/site-packages/setuptools/_vendor/platformdirs/macos.py",
+    "libexec/pyvenv.cfg"
+  ],
+  "time": 1740752440,
+  "source_modified_time": 1740497803,
+  "compiler": "clang",
+  "aliases": [
+    "ansible@11"
+  ],
+  "runtime_dependencies": [
+    {
+      "full_name": "ca-certificates",
+      "version": "2025-02-25",
+      "revision": 0,
+      "pkg_version": "2025-02-25",
+      "declared_directly": false
+    },
+    {
+      "full_name": "certifi",
+      "version": "2025.1.31",
+      "revision": 0,
+      "pkg_version": "2025.1.31",
+      "declared_directly": true
+    },
+    {
+      "full_name": "pycparser",
+      "version": "2.22",
+      "revision": 1,
+      "pkg_version": "2.22_1",
+      "declared_directly": false
+    },
+    {
+      "full_name": "cffi",
+      "version": "1.17.1",
+      "revision": 1,
+      "pkg_version": "1.17.1_1",
+      "declared_directly": false
+    },
+    {
+      "full_name": "openssl@3",
+      "version": "3.4.1",
+      "revision": 0,
+      "pkg_version": "3.4.1",
+      "declared_directly": false
+    },
+    {
+      "full_name": "cryptography",
+      "version": "44.0.1",
+      "revision": 0,
+      "pkg_version": "44.0.1",
+      "declared_directly": true
+    },
+    {
+      "full_name": "libsodium",
+      "version": "1.0.20",
+      "revision": 0,
+      "pkg_version": "1.0.20",
+      "declared_directly": true
+    },
+    {
+      "full_name": "libssh",
+      "version": "0.11.1",
+      "revision": 0,
+      "pkg_version": "0.11.1",
+      "declared_directly": true
+    },
+    {
+      "full_name": "libyaml",
+      "version": "0.2.5",
+      "revision": 0,
+      "pkg_version": "0.2.5",
+      "declared_directly": true
+    },
+    {
+      "full_name": "mpdecimal",
+      "version": "4.0.0",
+      "revision": 0,
+      "pkg_version": "4.0.0",
+      "declared_directly": false
+    },
+    {
+      "full_name": "readline",
+      "version": "8.2.13",
+      "revision": 0,
+      "pkg_version": "8.2.13",
+      "declared_directly": false
+    },
+    {
+      "full_name": "sqlite",
+      "version": "3.49.1",
+      "revision": 0,
+      "pkg_version": "3.49.1",
+      "declared_directly": false
+    },
+    {
+      "full_name": "xz",
+      "version": "5.6.4",
+      "revision": 0,
+      "pkg_version": "5.6.4",
+      "declared_directly": false
+    },
+    {
+      "full_name": "python@3.13",
+      "version": "3.13.2",
+      "revision": 0,
+      "pkg_version": "3.13.2",
+      "declared_directly": true
+    }
+  ],
+  "source": {
+    "spec": "stable",
+    "versions": {
+      "stable": "11.3.0",
+      "head": null,
+      "version_scheme": 0
+    },
+    "path": "/Users/andersaarniit/Library/Caches/Homebrew/api/formula.jws.json",
+    "tap_git_head": null,
+    "tap": "homebrew/core"
+  },
+  "arch": "arm64",
+  "built_on": {
+    "os": "Macintosh",
+    "os_version": "macOS 15",
+    "cpu_family": "dunno",
+    "xcode": "16.2",
+    "clt": "16.2.0.0.1.1733547573",
+    "preferred_perl": "5.34"
+  }
+}

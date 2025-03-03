@@ -1,0 +1,13 @@
+# Running this playbook: ansible-playbook playbook.yml -i inventory/hosts
+
+- hosts: all
+  user: centos
+  become: yes
+  become_user: root
+
+  roles:
+  - etais
+
+  tasks:
+  - name: Testing this out
+    debug: msg="Hello from user {{ ansible_user_id }} on server {{ ansible_hostname }}!"
