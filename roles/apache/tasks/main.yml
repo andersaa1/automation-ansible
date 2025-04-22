@@ -1,0 +1,286 @@
+# --- installing necessary packages ---
+- name: Install necessary packages
+  dnf:
+    name:
+      - httpd # Apache Web Server
+      - python3-pip # tool to manage Python libraries
+      - php-mysqlnd
+      - php-fpm
+      - mariadb-server
+      - tar
+      - curl
+      - php-json
+      - mod_security # for configuring custom security rules
+    state: latest
+
+- name: Install flask python package
+  pip:
+    name: flask # Flask libraries necessary to run a flask program
+
+- name: Install PyMySQL for Python3
+  pip:
+    name: PyMySQL
+    executable: pip3
+
+# --- opening ports and services ---
+- name: Permanently enable http service
+  ansible.posix.firewalld:
+    service: http
+    state: enabled
+    permanent: true
+    immediate: true # this is basically 'firewall-cmd --reload'
+
+# --- start the web server ---
+- name: Start and enable httpd service
+  service:
+    name: httpd
+    state: started
+    enabled: true
+
+# --- creating a virtual host ---
+- name: Create www.<hostname> directory into /var/www/html
+  file:
+    path: /var/www/html/www.{{ hostname }}/public_html
+    state: directory
+    owner: apache
+    group: apache
+    mode: '0755'
+    recurse: yes # if www.{{ hostname }} directory doesn't exist, creates that as well
+
+- name: Create configuration file for virtual host
+  template:
+    src: "host-configuration.j2"
+    dest: "/etc/httpd/conf.d/www.{{ hostname }}.conf"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Comment out welcome.conf
+  copy:
+    src: welcome.conf
+    dest: /etc/httpd/conf.d/welcome.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create content for virtual host
+  template:
+    src: "index.html.j2"
+    dest: "/var/www/html/www.{{ hostname }}/public_html/index.html"
+    owner: apache
+    group: apache
+    mode: '0644'
+  notify: Restart httpd service
+
+# --- create CNAME records ---
+- name: Create a CNAME record for www in zone file.
+  template:
+    src: "main-zone.j2"
+    dest: "/etc/named/{{ hostname }}.{{ domain_name }}"
+    owner: root
+    group: named
+    mode: '0644'
+  notify: Restart named service
+
+# --- create reverse proxy ---
+- name: Allow Apache to connect to network services
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes # sets the boolean to 1
+    persistent: yes # makes it survive reboots
+
+- name: Create configuration file for proxy virtual host
+  template:
+    src: "proxy.conf.j2"
+    dest: "/etc/httpd/conf.d/proxy.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+- name: Add user proxy as Linux user
+  user: 
+    name: proxy
+
+- name: Setting up a small application
+  copy:
+    src: website.py
+    dest: /usr/local/lib/server.py
+    owner: proxy
+    group: proxy
+    mode: '0644'
+
+- name: Create a systemd service file proxy.service
+  copy:
+    src: proxy.service
+    dest: /etc/systemd/system/proxy.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart systemd
+
+- name: Start and enable proxy service
+  service:
+    name: proxy
+    state: started
+    enabled: true
+
+# --- configuring the Database ---
+- name: Start and enable mariadb service
+  service:
+    name: mariadb
+    state: started
+    enabled: true
+
+- name: Set root password for MariaDB
+  community.mysql.mysql_user:
+    name: root
+    host: localhost
+    password: "{{ mysql_root_password }}"
+    # remove these two at first run
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+    #login_unix_socket: /var/lib/mysql/mysql.sock
+    #check_implicit_admin: yes
+
+- name: Remove anonymous users
+  community.mysql.mysql_user:
+    name: ''
+    host_all: true
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Disallow root login remotely
+  community.mysql.mysql_user:
+    name: root
+    host: '%'
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Delete database with name 'test'
+  community.mysql.mysql_db:
+    name: test
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Restore privileges table
+  community.mysql.mysql_query:
+    query: "FLUSH PRIVILEGES;"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+# --- creating the Database ---
+
+- name: Create a database for WordPress
+  community.mysql.mysql_db:
+    name: WordPress
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name:
+  community.mysql.mysql_user:
+    name: admin
+    password: pass
+    priv: "WordPress.*:ALL"
+    state: present
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Restore privileges table
+  community.mysql.mysql_query:
+    query: "FLUSH PRIVILEGES;"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+# --- setting up WordPress files ---
+- name: Download the latest version of WordPress
+  get_url:
+    url: https://wordpress.org/latest.tar.gz
+    dest: /tmp/wordpress.tar.gz
+
+- name: Extract the WordPress tar.gz file
+  unarchive:
+    src: /tmp/wordpress.tar.gz
+    dest: /var/www/html/
+    remote_src: yes # refers to file on remote machine
+
+- name: Set file ownership for WordPress
+  file:
+    path: /var/www/html/wordpress
+    owner: apache
+    group: apache
+    recurse: yes
+    state: directory
+
+- name: Set SELinux context for WordPress directory
+  sefcontext:
+    target: '/var/www/html/wordpress(/.*)?'
+    setype: httpd_sys_rw_content_t
+
+- name: Apply SELinux context to WordPress directory
+  command: restorecon -Rv /var/www/html/wordpress
+
+- name: Edit php-fpm.conf 
+  copy:
+    src: php-fpm.conf
+    dest: /etc/php-fpm.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Edit www.conf
+  copy:
+    src: www.conf
+    dest: /etc/php-fpm.d/www.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create the log files in /var/named/log
+  file:
+    path: /var/log/httpd/{{ item }} # item is taken from loop
+    state: touch
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - www-php-errors.log
+    - php-errors.log
+
+- name: Create configuration file for wordpress virtual host
+  template:
+    src: "wordpress.conf.j2"
+    dest: "/etc/httpd/conf.d/wordpress.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+- name: Start and enable php-fpm service
+  service:
+    name: php-fpm
+    state: started
+    enabled: true
+
+# --- enable forensic logging ---
+- name: Edit httpd.conf 
+  copy:
+    src: httpd.conf
+    dest: /etc/httpd/conf/httpd.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+# --- configure custom security rules ---
+- name: Edit modsecurity.conf 
+  copy:
+    src: modsecurity.conf
+    dest: /etc/httpd/modsecurity.d/local_rules/modsecurity.conf
+    owner: root
+    group: root
+    mode: '0644'

@@ -4,9 +4,19 @@
   user: centos
   become: yes
   become_user: root
+  vars:
+    hostname: saarniit-test
+    domain_name: sa.cs.ut.ee
+    external_ip: 172.17.91.211
+    reverse_ip: 91.17.172
+    subdomain: 172.17.91
+    host_portion: 211
+    mysql_root_password: andmebaas123
 
   roles:
-  - etais
+  #- etais
+  #- dns
+  - apache
 
   tasks:
   - name: Testing this out
