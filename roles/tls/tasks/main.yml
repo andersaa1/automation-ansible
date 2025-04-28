@@ -1,0 +1,111 @@
+# ansible-galaxy collection install community.hashi_vault
+
+# --- installing necessary packages ---
+- name: Install mod_ssl, cyrus-sasl-plain package
+  dnf:
+    name: 
+      - mod_ssl
+      - cyrus-sasl-plain
+    state: latest
+
+# --- check if relevant ports open ---
+- name: Open SMTP ports
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - 443
+    - 465
+    - 993
+
+# --- gathering credentials from encrypted file ---
+- name: Load LDAP username from vault
+  include_vars:
+    file: "roles/tls/files/vault_ldap_username.yaml"
+
+- name: Load LDAP password from vault
+  include_vars:
+    file: "roles/tls/files/vault_ldap_password.yaml"
+
+# --- requesting certificates ---
+- name: Request a wildcard certificate from HashiCorp Vault PKI
+  community.hashi_vault.vault_pki_generate_certificate:
+    url: "https://scoring.sa.cs.ut.ee:8200"
+    auth_method: "ldap"
+    username: "{{ vault_ldap_username }}"
+    password: "{{ vault_ldap_password }}"
+    engine_mount_point: "pki_int"
+    role_name: "{{ domain_name }}"
+    common_name: "*.{{ hostname }}.{{ domain_name }}"
+  register: wildcard_vault_pki_response
+  delegate_to: localhost
+  become: false
+
+- name: Request a mail certificate from HashiCorp Vault PKI
+  community.hashi_vault.vault_pki_generate_certificate:
+    url: "https://scoring.sa.cs.ut.ee:8200"
+    auth_method: "ldap"
+    username: "{{ vault_ldap_username }}"
+    password: "{{ vault_ldap_password }}"
+    engine_mount_point: "pki_int"
+    role_name: "{{ domain_name }}"
+    common_name: "mail.{{ hostname }}.{{ domain_name }}"
+  register: mail_vault_pki_response
+  delegate_to: localhost
+  become: false
+
+# --- populating certificate files ---
+- name: Populate certificate files with Vault PKI response
+  copy:
+    content: "{{ item.content }}"
+    dest: "{{ item.path }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: '/etc/pki/tls/certs/*_server.crt', content: "{{ wildcard_vault_pki_response.data.data.certificate }}", mode: '0644'}
+    - { path: '/etc/pki/tls/certs/cacert.crt', content: "{{ wildcard_vault_pki_response.data.data.ca_chain | join('\n') }}", mode: '0644'}
+    - { path: '/etc/pki/tls/private/*_server.key', content: "{{ wildcard_vault_pki_response.data.data.private_key }}", mode: '0600'}
+    - { path: '/etc/pki/tls/certs/mail_server.crt', content: "{{ mail_vault_pki_response.data.data.certificate }}", mode: '0644'}
+    - { path: '/etc/pki/tls/certs/mail_cacert.crt', content: "{{ mail_vault_pki_response.data.data.ca_chain | join('\n') }}", mode: '0644'}
+    - { path: '/etc/pki/tls/private/mail_server.key', content: "{{ mail_vault_pki_response.data.data.private_key }}", mode: '0600'}
+    - { path: '/etc/pki/dovecot/certs/dovecot.pem', content: "{{ mail_vault_pki_response.data.data.certificate }}\n{{ mail_vault_pki_response.data.data.ca_chain | join('\n') }}", mode: '0644'}
+    - { path: '/etc/pki/dovecot/private/dovecot.pem', content: "{{ mail_vault_pki_response.data.data.private_key }}", mode: '0600'}
+
+# --- enabling TLS with web services ---
+- name: Add new virtual host listening on port 443 to virtualhost files
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: 0644
+  loop:
+    - { src: "www_virtualhost.j2", dest: "/etc/httpd/conf.d/www.{{ hostname }}.conf" }
+    - { src: "proxy_virtualhost.j2", dest: "/etc/httpd/conf.d/proxy.conf" }
+    - { src: "wordpress_virtualhost.j2", dest: "/etc/httpd/conf.d/wordpress.conf" }
+  notify: Restart httpd service
+
+# --- enabling TLS with email services ---
+- name: Modify /etc/postfix/main.cf file (Postfix configuration file)
+  template:
+    src: main.cf.j2
+    dest: /etc/postfix/main.cf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart postfix service
+
+- name: Configure submission section in postfix's master.cf and parameters in 10-ssl.conf
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - { src: "master.cf", dest: /etc/postfix/master.cf }
+    - { src: "10-ssl.conf", dest: /etc/dovecot/conf.d/10-ssl.conf}
+  notify: 
+    - Restart postfix service
+    - Restart dovecot service

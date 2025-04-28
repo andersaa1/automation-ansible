@@ -1,1 +1,3 @@
 .DS_Store
+vault_ldap_password.yaml
+vault_ldap_username.yaml
