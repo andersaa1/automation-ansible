@@ -1,0 +1,330 @@
+# --- installing necessary packages ---
+- name: Install necessary packages
+  dnf:
+    name:
+      - postfix
+      - dovecot
+      - telnet
+      - epel-release
+      - dnf-plugins-core
+    state: latest
+
+- name: Update all packages
+  dnf:
+    name: "*"
+    state: latest
+
+- name: Enable CRB repository for dnf
+  command: dnf config-manager --set-enabled crb
+
+- name: Install necessary packages
+  dnf:
+    name:
+      - make
+      - ImageMagick
+      - ImageMagick-devel
+      - ImageMagick-perl
+      - pcre-devel
+      - zlib
+      - zlib-devel
+      - libzip
+      - libzip-devel
+      - libmcrypt-devel
+      - php
+      - php-fpm
+      - php-devel
+      - php-pear
+      - php-cli
+      - php-gd
+      - php-curl
+      - php-xml
+      - php-mysqlnd
+      - php-mbstring
+      - php-intl
+      - php-ldap
+      - mariadb
+      - mariadb-server
+      - httpd
+    state: latest
+
+# --- installing extensions with pecl
+- name: Install PHP imagick extension
+  shell: | # automatically answers prompts
+    printf "\n" | pecl install imagick
+  args:
+    creates: /usr/lib64/php/modules/imagick.so # makes sure the command isn't ran multiple times
+
+- name: Install PHP mcrypt extension
+  shell: | # automatically answers prompts
+    printf "\n" | pecl install mcrypt
+  args:
+    creates: /usr/lib64/php/modules/mcrypt.so # makes sure the command isn't ran multiple times
+
+- name: Install PHP zip extension
+  shell: | # automatically answers prompts
+    printf "\n" | pecl install zip
+  args:
+    creates: /usr/lib64/php/modules/zip.so # makes sure the command isn't ran multiple times
+
+- name: Create .ini files for pecl extensions
+  copy:
+    src: "20-{{ item }}.ini"
+    dest: "/etc/php.d/20-{{ item }}.ini"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - imagick
+    - mcrypt
+    - zip
+
+# --- opening relevant ports ---
+- name: Open SMTP ports
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - 25
+    - 465
+    - 587
+
+- name: Open IMAP ports
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - 143
+    - 993
+
+# --- creating zone records ---
+- name: Create a MX and an A record for mail in zone file.
+  template:
+    src: "main-zone.j2"
+    dest: "/etc/named/{{ hostname }}.{{ domain_name }}"
+    owner: root
+    group: named
+    mode: '0644'
+  notify: Restart named service
+
+# --- postfix setup ---
+- name: Modify /etc/postfix/main.cf file (Postfix configuration file)
+  template:
+    src: main.cf.j2
+    dest: /etc/postfix/main.cf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart postfix service
+
+- name: Start and enable postfix service
+  service:
+    name: postfix
+    state: started
+    enabled: true
+
+# --- sending to domains ---
+- name: Add user mailuser as Linux user
+  user: 
+    name: mailuser
+    password: "{{ mailuser_password }}"
+
+- name: Send an email from mailuser to nagios@scoring.sa.cs.ut.ee
+  community.general.mail:
+    host: localhost
+    port: 25
+    to: "nagios@scoring.sa.cs.ut.ee"
+    subject: "Lab6 test from mailuser@{{ hostname }}.{{ domain_name }}"
+    body: "This is a test email sent from Ansible for Lab6."
+    from: "mailuser@{{ hostname }}.{{ domain_name }}"
+
+# --- setting up IMAP server
+- name: Set mail_debug to yes in 10-logging.conf
+  copy:
+    src: 10-logging.conf
+    dest: /etc/dovecot/conf.d/10-logging.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart dovecot service
+
+- name: Allow imap and lmtp protocol in dovecot.conf
+  copy:
+    src: dovecot.conf
+    dest: /etc/dovecot/dovecot.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Set auth_mechanisms, auth_username_format and disable_plaintext_auth variables in 10-auth.conf
+  copy:
+    src: 10-auth.conf
+    dest: /etc/dovecot/conf.d/10-auth.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Set mail_location to maildir:~/mail in 10-mail.conf
+  copy:
+    src: 10-mail.conf
+    dest: /etc/dovecot/conf.d/10-mail.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Add dovecot user to mail group
+  user:
+    name: dovecot
+    groups: mail
+    append: yes # adds the group without removing the user from any existing groups
+
+- name: Edit dovecot's mailboxes module
+  copy:
+    src: 15-mailboxes.conf
+    dest: /etc/dovecot/conf.d/15-mailboxes.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Start and enable dovecot service
+  service:
+    name: dovecot
+    state: started
+    enabled: true
+
+- name: Set ssl to no in 10-ssl.conf
+  copy:
+    src: 10-ssl.conf
+    dest: /etc/dovecot/conf.d/10-ssl.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+# --- mailbox handling from postfix to dovecot ---
+- name: Define the lmtp listener in 10-master.conf
+  copy:
+    src: 10-master.conf
+    dest: /etc/dovecot/conf.d/10-master.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: 
+    - Restart postfix service
+    - Restart dovecot service
+
+- name: Configure submission section in postfix's master.cf
+  copy:
+    src: master.cf
+    dest: /etc/postfix/master.cf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Start and enable httpd, mariadb, php-fpm service
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - httpd
+    - mariadb
+    - php-fpm
+
+# --- setup database for roundcube ---
+- name: Create roundcubemail database
+  community.mysql.mysql_db:
+    name: roundcubemail
+    state: present
+    encoding: utf8
+    collation: utf8_general_ci
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Create MySQL user 'roundcube'@'localhost'
+  community.mysql.mysql_user:
+    name: roundcube
+    host: localhost
+    password: "{{ database_user_password }}"
+    priv: 'roundcubemail.*:ALL'
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Restore privileges table
+  community.mysql.mysql_query:
+    query: "FLUSH PRIVILEGES;"
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+# --- download roundcube ---
+- name: Download roundcube
+  get_url:
+    url: https://github.com/roundcube/roundcubemail/releases/download/1.6.1/roundcubemail-1.6.1-complete.tar.gz
+    dest: /var/www/html/roundcube.tar.gz
+    mode: '0644'
+
+- name: Extract Roundcube archive
+  unarchive:
+    src: /var/www/html/roundcube.tar.gz
+    dest: /var/www/html/
+    remote_src: yes
+
+- name: Remove the tar.gz archive
+  file:
+    path: /var/www/html/roundcube.tar.gz
+    state: absent
+
+- name: Rename extracted directory to roundcubemail
+  command: mv /var/www/html/roundcubemail-1.6.1 /var/www/html/roundcubemail
+  args:
+    creates: /var/www/html/roundcubemail
+
+- name: Set ownership and permissions for roundcube directory
+  file:
+    path: /var/www/html/roundcubemail
+    state: directory
+    recurse: yes
+    owner: apache
+    group: apache
+    mode: '0755'
+
+# --- setting up roundcube ---
+- name: Create configuration file for roundcube virtual host
+  template:
+    src: mail-virtualhost.j2
+    dest: "/etc/httpd/conf.d/mail.{{ hostname }}.{{ domain_name }}.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+- name: Create /var/log/roundcube directory
+  file:
+    path: /var/log/roundcube
+    state: directory
+    owner: apache
+    group: apache
+    mode: '0755'
+
+- name: Create roundcube configuration file
+  template:
+    src: config.inc.php.j2
+    dest: /var/www/html/roundcubemail/config/config.inc.php
+    owner: apache
+    group: apache
+    mode: '0644'
+
+- name: Remove roundcube installer
+  file:
+    path: /var/www/html/roundcubemail/installer
+    state: absent
+
+- name: Import Roundcube DB schema
+  community.mysql.mysql_db:
+    name: roundcubemail
+    state: import
+    target: /var/www/html/roundcubemail/SQL/mysql.initial.sql
+    login_user: roundcube
+    login_password: "{{ database_user_password }}"

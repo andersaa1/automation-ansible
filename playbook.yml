@@ -12,11 +12,14 @@
     subdomain: 172.17.91
     host_portion: 211
     mysql_root_password: andmebaas123
+    mailuser_password: $6$jbMlgRYxLQ1AtaDb$uwq8G5RIlwyN07ZpBEItmCsuZlKZaCX4OfeMbQWS1tsPfA/zH.c3iY3kKjeTHTkjfQ7lC8yek7ayO27o17BUw0
+    database_user_password: hwZpO+4ufbv2wOk3VhrHrg== # for roundcube
 
   roles:
   #- etais
   #- dns
-  - apache
+  #- apache
+  - email
 
   tasks:
   - name: Testing this out

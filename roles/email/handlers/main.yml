@@ -1,0 +1,19 @@
+- name: Restart named service
+  service:
+    name: named
+    state: restarted
+
+- name: Restart postfix service
+  service:
+    name: postfix
+    state: restarted
+
+- name: Restart dovecot service
+  service:
+    name: dovecot
+    state: restarted
+
+- name: Restart httpd service
+  service:
+    name: httpd
+    state: restarted
