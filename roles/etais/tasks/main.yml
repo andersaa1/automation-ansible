@@ -24,3 +24,11 @@
     line: "scoring ALL=(ALL) NOPASSWD: ALL"
     state: present
     create: yes # allows for creating the file if it does not exist
+
+- name: Create identity file in /etc/identity
+  template:
+    src: identity.j2
+    dest: "/etc/identity"
+    owner: root
+    group: root
+    mode: '0644'

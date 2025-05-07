@@ -6,12 +6,12 @@
   become: yes
   become_user: root
   vars:
-    hostname: saarniit-test
+    hostname: saarniit-ansip
     domain_name: sa.cs.ut.ee
-    external_ip: 172.17.91.211
-    reverse_ip: 91.17.172
-    subdomain: 172.17.91
-    host_portion: 211
+    external_ip: 172.17.90.145
+    reverse_ip: 90.17.172
+    subdomain: 172.17.90
+    host_portion: 145
     mysql_root_password: andmebaas123
     mailuser_password: $6$jbMlgRYxLQ1AtaDb$uwq8G5RIlwyN07ZpBEItmCsuZlKZaCX4OfeMbQWS1tsPfA/zH.c3iY3kKjeTHTkjfQ7lC8yek7ayO27o17BUw0
     database_user_password: hwZpO+4ufbv2wOk3VhrHrg== # for roundcube
@@ -21,7 +21,8 @@
   #- dns
   #- apache
   #- email
-  - tls
+  #- tls
+  - fs
 
   tasks:
   - name: Testing this out

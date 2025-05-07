@@ -284,3 +284,6 @@
     owner: root
     group: root
     mode: '0644'
+
+# IF ERRORS WITH GETTING ANSWER FROM www.hostname.domain
+# sudo restorecon -Rv /var/www/html

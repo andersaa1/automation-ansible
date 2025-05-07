@@ -1,0 +1,2 @@
+- name: Publish exports configuration change
+  command: exportfs -a

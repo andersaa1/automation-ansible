@@ -1,0 +1,172 @@
+# CREATING PARTITIONS, INSTALLING AND MOUNTING FILESYSTEMS HAVE TO BE DONE MANUALLY SINCE IT'S NOT RECOMMENDED TO AUTOMATE
+
+# --- installing necessary packages ---
+- name: Install necessary packages
+  dnf:
+    name:
+      # NFS
+      - nfs-utils
+      # SMB
+      - samba
+      - samba-common
+      - samba-client
+      - cifs-utils
+    state: latest
+
+# --- opening ports and services ---
+- name: Ensure nfs-server service is running
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - nfs-server
+    - smb
+
+- name: Open NFS ports
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    # NFS
+    - 111
+    - 2049
+    # SMB
+    - 139
+    - 445
+
+# --- set up NFS ---
+- name: Create /shares/nfs directory
+  file:
+    path: /shares/nfs
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+    recurse: yes # if /shares doesn't exist, create that as well
+
+- name: Create /mnt/nfs directory
+  file:
+    path: /mnt/nfs
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Setup /etc/exports file
+  copy:
+    src: exports
+    dest: /etc/exports
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Publish exports configuration change
+
+- name: Mount NFS
+  mount:
+    path: /mnt/nfs
+    src: "{{ hostname }}.{{ domain_name }}:/shares/nfs"
+    fstype: nfs
+    state: mounted
+
+- name: Ensure NFS mount is persistent
+  mount:
+    path: /mnt/nfs
+    src: "{{ hostname }}.{{ domain_name }}:/shares/nfs"
+    fstype: nfs
+    opts: defaults
+    state: present
+
+# --- set up SAMBA ---
+- name: Create /shares/samba directory
+  file:
+    path: /shares/samba
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+    recurse: yes # if /shares doesn't exist, create that as well
+
+- name: Create /mnt/samba directory
+  file:
+    path: /mnt/samba
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create samba group
+  group:
+    name: samba_group
+    state: present
+
+- name: Add users to samba_group
+  user:
+    name: "{{ item }}"
+    groups: samba_group
+    append: yes
+  loop:
+    - scoring
+    - centos
+
+- name: Set samba password
+  shell: echo -e "2daysuperadmin\n2daysuperadmin" | smbpasswd -a {{ item }}
+  loop:
+    - scoring
+    - centos
+
+- name: Set ownership for /shares/samba
+  file:
+    path: /shares/samba
+    state: directory
+    recurse: yes
+    owner: root
+    group: samba_group
+    mode: '0755'
+
+- name: Edit /etc/samba/smb.conf file
+  copy:
+    src: smb.conf
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+# --- set up consul ---
+- name: Publish exports configuration change
+  command: /usr/local/bin/consul kv put object/{{ hostname }} saonniilahe
+
+# --- set up object storage and make a bucket ---
+- name: Download MinIO client
+  get_url:
+    url: https://dl.min.io/client/mc/release/linux-amd64/mc
+    dest: /usr/bin/mc
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Add scoring to mc configured hosts
+  command: mc config host add scoring https://scoring.sa.cs.ut.ee:9000 {{ hostname }} saonniilahe
+
+- name: Check if bucket exists
+  command: mc ls scoring/{{ hostname }}
+  register: bucket_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Create bucket if it doesn't exist
+  command: mc mb scoring/{{ hostname }}
+  when: bucket_check.rc != 0
+
+- name: Create a test file for scoring
+  template:
+    src: scoringtestfile.j2
+    dest: "/etc/scoringtestfile"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy test file to remote bucket
+  command: mc cp /etc/scoringtestfile scoring/{{ hostname }}/scoringtestfile
