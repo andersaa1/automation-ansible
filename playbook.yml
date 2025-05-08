@@ -22,7 +22,8 @@
   #- apache
   #- email
   #- tls
-  - fs
+  #- fs
+  - docker
 
   tasks:
   - name: Testing this out

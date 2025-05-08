@@ -1,0 +1,112 @@
+# --- open relevant ports ---
+- name: Open port 5005/tcp
+  ansible.posix.firewalld:
+    port: 5005/tcp
+    state: enabled
+    permanent: true
+    immediate: true
+
+# --- setting up docker configuration ---
+- name: Create /etc/docker directory
+  file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create /etc/docker/daemon.json file
+  copy:
+    src: daemon.json
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: '0644'
+
+# --- installing docker ---
+- name: Install required packages
+  dnf:
+    name: dnf-plugins-core
+    state: present
+
+- name: Add Docker repository
+  command: dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  args:
+    creates: /etc/yum.repos.d/docker-ce.repo
+
+- name: Install Docker packages
+  dnf:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+    state: latest
+
+- name: Enable and start Docker service
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+# --- adding user to docker group ---
+- name: Add user to docker group
+  user:
+    name: centos
+    groups: docker
+    append: yes
+
+# --- building a docker image ---
+- name: Create /etc/docker_lab directory for flask app
+  file:
+    path: /etc/docker_lab
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create /etc/docker/daemon.json file
+  copy:
+    src: "{{ item }}"
+    dest: /etc/docker_lab/{{ item }}
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - Dockerfile
+    - server.py
+
+# --- proxy traffic from public network to the container ---
+- name: Create a CNAME record for container-proxy in zone file.
+  template:
+    src: "main-zone.j2"
+    dest: "/etc/named/{{ hostname }}.{{ domain_name }}"
+    owner: root
+    group: named
+    mode: '0644'
+  notify: Restart named service
+
+- name: Create configuration file for container-proxy virtual host
+  template:
+    src: container-proxy-virtualhost.j2
+    dest: "/etc/httpd/conf.d/container-proxy.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart httpd service
+
+# --- creating persistent files in containers ---
+- name: Create docker_lab_persistent_data directory
+  file:
+    path: /etc/docker_lab/docker_lab_persistent_data
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create motd.txt file
+  copy:
+    src: motd.txt
+    dest: /etc/docker_lab/docker_lab_persistent_data/motd.txt
+    owner: root
+    group: root
+    mode: '0755'

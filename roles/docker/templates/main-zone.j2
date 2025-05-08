@@ -1,0 +1,20 @@
+;
+; BIND data file for local zone {{ hostname }}.{{ domain_name }};
+$TTL    15M
+@       IN      SOA     ns1.{{ hostname }}.{{ domain_name }}. root.{{ hostname }}.{{ domain_name }}. (
+                     2012020211         ; Serial
+                            15M         ; Refresh
+                             5M         ; Rerty
+                           120M         ; Expire
+                            600 )       ; Negative Cache TTL
+
+@               IN      NS      ns1
+@               IN      A       {{ external_ip }}
+ns1             IN      A       {{ external_ip }}
+{{ hostname }}   IN      A       {{ external_ip }}
+mail            IN      A       {{ external_ip }}
+www             IN      CNAME   {{ hostname }}.{{ domain_name }}.
+proxy           IN      CNAME   {{ hostname }}.{{ domain_name }}.
+wordpress       IN      CNAME   {{ hostname }}.{{ domain_name }}.
+container-proxy IN      CNAME   {{ hostname }}.{{ domain_name }}.
+@               IN      MX 10   mail.
